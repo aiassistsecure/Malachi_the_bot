@@ -27,10 +27,25 @@ class DiscordHandler(PlatformHandler):
         self._bot: Optional[commands.Bot] = None
         self._bot_user_id: Optional[int] = None
         self._imagine_callback: Optional[Callable[[str], Awaitable[Optional[str]]]] = None
+        self._review_callback: Optional[Callable[[str], Awaitable[str]]] = None
+        self._deepsearch_callback: Optional[Callable[[str], Awaitable[str]]] = None
+        self._clear_callback = None
     
     def on_imagine(self, callback: Callable[[str], Awaitable[Optional[str]]]) -> None:
         """Register callback for image generation."""
         self._imagine_callback = callback
+    
+    def on_review(self, callback: Callable[[str], Awaitable[str]]) -> None:
+        """Register callback for website review."""
+        self._review_callback = callback
+    
+    def on_deepsearch(self, callback: Callable[[str], Awaitable[str]]) -> None:
+        """Register callback for deep search."""
+        self._deepsearch_callback = callback
+    
+    def on_clear(self, callback) -> None:
+        """Register callback for clearing conversation history."""
+        self._clear_callback = callback
     
     async def connect(self) -> None:
         """Connect to Discord."""
@@ -95,6 +110,8 @@ class DiscordHandler(PlatformHandler):
 **Slash Commands:**
 • `/ask <question>` - Ask the AI a question
 • `/imagine <prompt>` - Generate an image from text
+• `/review <url>` - Review a website/app with GTM insights
+• `/deepsearch <url>` - Deep multi-page website analysis
 • `/help` - Show this help message
 • `/info` - Show bot information
 • `/clear` - Clear your conversation history
@@ -121,7 +138,9 @@ Visit https://aiassist.net for more info."""
         
         @self._bot.tree.command(name="clear", description="Clear your conversation history")
         async def clear_command(interaction: discord.Interaction):
-            # This will be handled by the engine's memory system
+            from ..models import Platform
+            if self._clear_callback:
+                await self._clear_callback(Platform.DISCORD, str(interaction.channel_id), str(interaction.user.id))
             await interaction.response.send_message("Your conversation history has been cleared.", ephemeral=True)
         
         @self._bot.tree.command(name="imagine", description="Generate an image from a text description")
@@ -146,6 +165,48 @@ Visit https://aiassist.net for more info."""
                     await interaction.followup.send(f"Error generating image: {str(e)[:100]}")
             else:
                 await interaction.followup.send("Image generation is not available.")
+        
+        @self._bot.tree.command(name="review", description="Review a website/app with GTM insights and AI recommendations")
+        async def review_command(interaction: discord.Interaction, url: str):
+            await interaction.response.defer(thinking=True)
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            if self._review_callback:
+                try:
+                    await interaction.followup.send(f"Analyzing {url}... This may take a moment.")
+                    response = await self._review_callback(url)
+                    chunks = self._chunk_message(response, 1900)
+                    for i, chunk in enumerate(chunks):
+                        if i == 0:
+                            await interaction.followup.send(chunk)
+                        else:
+                            await interaction.channel.send(chunk)
+                except Exception as e:
+                    logger.error(f"Review command error: {e}")
+                    await interaction.followup.send(f"Error reviewing site: {str(e)[:100]}")
+            else:
+                await interaction.followup.send("Review feature is not available.")
+        
+        @self._bot.tree.command(name="deepsearch", description="Deep multi-page website analysis with comprehensive insights")
+        async def deepsearch_command(interaction: discord.Interaction, url: str):
+            await interaction.response.defer(thinking=True)
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            if self._deepsearch_callback:
+                try:
+                    await interaction.followup.send(f"Deep searching {url}... Analyzing multiple pages, this may take a minute.")
+                    response = await self._deepsearch_callback(url)
+                    chunks = self._chunk_message(response, 1900)
+                    for i, chunk in enumerate(chunks):
+                        if i == 0:
+                            await interaction.followup.send(chunk)
+                        else:
+                            await interaction.channel.send(chunk)
+                except Exception as e:
+                    logger.error(f"Deepsearch command error: {e}")
+                    await interaction.followup.send(f"Error during deep search: {str(e)[:100]}")
+            else:
+                await interaction.followup.send("Deep search feature is not available.")
         
         @self._bot.event
         async def on_message(discord_message: discord.Message):

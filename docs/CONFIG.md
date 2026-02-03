@@ -386,7 +386,7 @@ server:
 Check your configuration:
 
 ```bash
-python main.py validate
+python main.py --validate-config
 ```
 
 Output:
