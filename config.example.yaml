@@ -1,0 +1,114 @@
+# Malachi the AiAS Bot Configuration
+# Copy this file to config.yaml and fill in your values
+
+# =============================================================================
+# AiAssist API Configuration
+# =============================================================================
+aiassist:
+  # Required: Your AiAssist API key
+  # Get one at https://aiassist.net
+  api_key: "aai_your_key_here"
+  
+  # API endpoint (default works for most users)
+  api_url: "https://api.aiassist.net"
+  
+  # Default AI model for responses
+  # Options: llama-3.3-70b-versatile, gpt-4o, claude-3-opus, etc.
+  model: "llama-3.3-70b-versatile"
+  
+  # Response creativity (0.0 = focused, 2.0 = creative)
+  temperature: 0.7
+  
+  # Maximum response length in tokens
+  max_tokens: 1024
+
+# =============================================================================
+# Platform Configuration
+# =============================================================================
+platforms:
+  # -------------------------------------------------------------------------
+  # Discord (Bot Account Only)
+  # -------------------------------------------------------------------------
+  discord:
+    # Enable Discord integration
+    enabled: false
+    
+    # Only "assistant" mode is supported (bot account)
+    mode: "assistant"
+    
+    # Your Discord bot token
+    # Get one at https://discord.com/developers/applications
+    bot_token: "your_discord_bot_token_here"
+    
+    # Command prefix for text commands (e.g., !help)
+    command_prefix: "!"
+    
+    # When should the bot respond?
+    respond_to_mentions: true    # When @mentioned
+    respond_to_dms: true         # Direct messages
+    respond_to_replies: true     # Replies to bot messages
+    
+    # Show typing indicator while generating response
+    typing_indicator: true
+    
+    # Rate limiting (per user)
+    rate_limit_messages: 10      # Max messages
+    rate_limit_window: 60        # Per this many seconds
+
+  # -------------------------------------------------------------------------
+  # Telegram (Assistant Mode only in OSS version)
+  # -------------------------------------------------------------------------
+  telegram:
+    # Enable Telegram integration
+    enabled: false
+    
+    # Only "assistant" mode is supported in the open-source version
+    mode: "assistant"
+    
+    # Get a bot token from @BotFather on Telegram
+    bot_token: "your_telegram_bot_token_here"
+    
+    # When should the bot respond?
+    respond_to_private: true     # Private chats
+    respond_to_groups: true      # Group chats
+    require_mention_in_groups: true  # Only respond when @mentioned in groups
+    
+    # Show typing indicator while generating
+    typing_indicator: true
+    
+    # Rate limiting (per user)
+    rate_limit_messages: 20
+    rate_limit_window: 60
+
+# =============================================================================
+# Memory & Storage
+# =============================================================================
+memory:
+  # Enable persistent memory
+  enabled: true
+  
+  # SQLite database location
+  database: "data/aias.db"
+  
+  # Conversation history settings
+  max_history: 100               # Messages to keep per conversation
+  
+
+# =============================================================================
+# Bot Engine / Management API
+# =============================================================================
+server:
+  # Management API settings
+  # Use 127.0.0.1 for local only, 0.0.0.0 for network access (requires api_key)
+  host: "127.0.0.1"
+  port: 8080
+  
+  # Enable management API endpoints
+  api_enabled: true
+  
+  # API key for authentication (recommended if exposing to network)
+  # Set via AIAS_API_KEY environment variable or here
+  # api_key: "your_secret_api_key"
+  
+  # Logging
+  log_level: "INFO"              # DEBUG, INFO, WARNING, ERROR
