@@ -15,6 +15,7 @@ class AiAssistConfig:
     api_key: str = ""
     api_url: str = "https://api.aiassist.net"
     model: str = "gpt-4o"
+    provider: str = ""
     temperature: float = 0.7
     max_tokens: int = 1024
     timeout: int = 30
@@ -139,6 +140,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
         api_key=_get_env("AIASSIST_API_KEY", aiassist_yaml.get("api_key", "")),
         api_url=_get_env("AIASSIST_API_URL", aiassist_yaml.get("api_url", "https://api.aiassist.net")),
         model=_get_env("AIASSIST_MODEL", aiassist_yaml.get("model", "gpt-4o")),
+        provider=_get_env("AIASSIST_PROVIDER", aiassist_yaml.get("provider", "")),
         temperature=aiassist_yaml.get("temperature", 0.7),
         max_tokens=aiassist_yaml.get("max_tokens", 1024),
         timeout=aiassist_yaml.get("timeout", 30),
