@@ -1,5 +1,6 @@
 """AiAssist API client for chat completions."""
 
+import asyncio
 import logging
 from typing import List, Optional, Dict, Any
 
@@ -77,17 +78,28 @@ class AiAssistClient:
                         return data["choices"][0]["message"]["content"]
                     
                     error_text = await response.text()
-                    logger.error(f"AiAssist API error {response.status}: {error_text}")
                     
-                    if response.status >= 500:
+                    # Handle rate limits with exponential backoff
+                    if response.status == 429 or "rate limit" in error_text.lower():
+                        wait_time = (2 ** attempt) * 2  # 2s, 4s, 8s...
+                        logger.warning(f"Rate limited, waiting {wait_time}s before retry {attempt + 1}/{self.config.retry_attempts}")
+                        await asyncio.sleep(wait_time)
                         continue
                     
+                    # Retry on server errors
+                    if response.status >= 500:
+                        logger.warning(f"Server error {response.status}, retrying...")
+                        await asyncio.sleep(1)
+                        continue
+                    
+                    logger.error(f"AiAssist API error {response.status}: {error_text}")
                     raise Exception(f"API error {response.status}: {error_text}")
                     
             except aiohttp.ClientError as e:
                 logger.error(f"Request failed (attempt {attempt + 1}): {e}")
                 if attempt == self.config.retry_attempts - 1:
                     raise
+                await asyncio.sleep(1)
         
         raise Exception("All retry attempts failed")
     
