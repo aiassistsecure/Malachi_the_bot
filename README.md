@@ -103,7 +103,7 @@ server:
 
 ```bash
 # Validate configuration
-python main.py validate
+python main.py --validate-config
 
 # Start the bot
 python main.py serve
