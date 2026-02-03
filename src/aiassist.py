@@ -167,7 +167,8 @@ class AiAssistClient:
         }
         
         try:
-            async with self._session.post(api_url, json=payload, headers=self._headers) as response:
+            timeout = aiohttp.ClientTimeout(total=90)
+            async with self._session.post(api_url, json=payload, headers=self._headers, timeout=timeout) as response:
                 if response.status == 200:
                     data = await response.json()
                     if not data.get("success", True):
