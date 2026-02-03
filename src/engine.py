@@ -193,8 +193,11 @@ class BotEngine:
     
     async def _handle_review(self, url: str) -> str:
         """Handle /review command - single page website analysis."""
+        logger.info(f"[REVIEW] Starting review for URL: '{url}'")
         try:
+            logger.info(f"[REVIEW] Calling web_extract...")
             extracted = await self.aiassist.web_extract(url, extract_links=False)
+            logger.info(f"[REVIEW] web_extract returned: success={extracted.get('success')}, content_len={len(extracted.get('content', ''))}")
             
             content = extracted.get("content", "")
             if not content or len(content) < 50:
