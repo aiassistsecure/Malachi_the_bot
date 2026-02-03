@@ -2,6 +2,9 @@
 
 **Open-source personal AI automation for Discord & Telegram**
 
+Telegram:  https://t.me/Malachi_the_bot
+
+
 An open-source bot framework that brings AI-powered automation to your favorite messaging platforms. Powered by [AiAssist API](https://aiassist.net) for intelligent, context-aware responses.
 
 ---
