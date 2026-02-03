@@ -17,16 +17,123 @@ from ..config import TelegramConfig
 logger = logging.getLogger(__name__)
 
 
+def escape_markdown_v2(text: str) -> str:
+    """Escape special characters for Telegram MarkdownV2."""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
+
+
+def markdown_to_telegram(text: str) -> str:
+    """
+    Convert standard markdown to Telegram MarkdownV2 format.
+    Handles GFM-style markdown including headers, bold, italic, code, links, etc.
+    """
+    lines = text.split('\n')
+    result_lines = []
+    in_code_block = False
+    code_block_content = []
+    
+    for line in lines:
+        # Handle code blocks
+        if line.strip().startswith('```'):
+            if in_code_block:
+                # End code block
+                code_content = '\n'.join(code_block_content)
+                result_lines.append(f'```\n{code_content}\n```')
+                code_block_content = []
+                in_code_block = False
+            else:
+                # Start code block
+                in_code_block = True
+            continue
+        
+        if in_code_block:
+            code_block_content.append(line)
+            continue
+        
+        # Convert headers to bold (Telegram doesn't support headers)
+        header_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if header_match:
+            header_text = header_match.group(2)
+            escaped = escape_markdown_v2(header_text)
+            result_lines.append(f'*{escaped}*')
+            continue
+        
+        # Process inline formatting
+        processed = line
+        
+        # Temporarily protect already formatted content
+        placeholders = {}
+        counter = [0]
+        
+        def make_placeholder(match, fmt_func):
+            key = f"__PH{counter[0]}__"
+            counter[0] += 1
+            placeholders[key] = fmt_func(match)
+            return key
+        
+        # Handle inline code first (protect from escaping)
+        def handle_code(m):
+            return f'`{m.group(1)}`'
+        processed = re.sub(r'`([^`]+)`', lambda m: make_placeholder(m, handle_code), processed)
+        
+        # Handle links
+        def handle_link(m):
+            text = escape_markdown_v2(m.group(1))
+            url = m.group(2)
+            return f'[{text}]({url})'
+        processed = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', lambda m: make_placeholder(m, handle_link), processed)
+        
+        # Escape special characters in remaining text
+        parts = re.split(r'(__PH\d+__)', processed)
+        escaped_parts = []
+        for part in parts:
+            if part in placeholders:
+                escaped_parts.append(placeholders[part])
+            else:
+                # Handle bold **text** or __text__
+                part = re.sub(r'\*\*(.+?)\*\*', lambda m: f'*{escape_markdown_v2(m.group(1))}*', part)
+                part = re.sub(r'__(.+?)__', lambda m: f'*{escape_markdown_v2(m.group(1))}*', part)
+                # Handle italic *text* or _text_
+                part = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', lambda m: f'_{escape_markdown_v2(m.group(1))}_', part)
+                part = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', lambda m: f'_{escape_markdown_v2(m.group(1))}_', part)
+                # Handle strikethrough
+                part = re.sub(r'~~(.+?)~~', lambda m: f'~{escape_markdown_v2(m.group(1))}~', part)
+                # Escape remaining special chars
+                part = re.sub(r'(?<!\\)([.!>\-=|{}#\+])', r'\\\1', part)
+                escaped_parts.append(part)
+        
+        processed = ''.join(escaped_parts)
+        result_lines.append(processed)
+    
+    # Handle unclosed code block
+    if in_code_block and code_block_content:
+        code_content = '\n'.join(code_block_content)
+        result_lines.append(f'```\n{code_content}\n```')
+    
+    return '\n'.join(result_lines)
+
+
 def markdown_to_html(text: str) -> str:
-    """Convert markdown to Telegram HTML format."""
+    """Convert markdown to Telegram HTML format (fallback)."""
+    # Escape HTML entities first
+    text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    
+    # Handle code blocks
     text = re.sub(r'```(\w*)\n(.*?)```', r'<pre>\2</pre>', text, flags=re.DOTALL)
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+    
+    # Handle headers (convert to bold)
+    text = re.sub(r'^#{1,6}\s+(.+)$', r'<b>\1</b>', text, flags=re.MULTILINE)
+    
+    # Handle formatting
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
-    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
-    text = re.sub(r'_(.+?)_', r'<i>\1</i>', text)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
+    text = re.sub(r'(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', r'<i>\1</i>', text)
     text = re.sub(r'~~(.+?)~~', r'<s>\1</s>', text)
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
+    
     return text
 
 
@@ -320,18 +427,29 @@ class TelegramHandler(PlatformHandler):
                 response = await self._review_callback(url)
                 chunks = self._chunk_message(response, 4000)
                 for chunk in chunks:
+                    # Try MarkdownV2 first for GFM support
                     try:
-                        html_chunk = markdown_to_html(chunk)
+                        md_chunk = markdown_to_telegram(chunk)
                         await context.bot.send_message(
                             chat_id=update.message.chat_id,
-                            text=html_chunk,
-                            parse_mode=ParseMode.HTML
+                            text=md_chunk,
+                            parse_mode=ParseMode.MARKDOWN_V2
                         )
-                    except Exception:
-                        await context.bot.send_message(
-                            chat_id=update.message.chat_id,
-                            text=chunk
-                        )
+                    except Exception as md_err:
+                        logger.debug(f"MarkdownV2 failed: {md_err}, trying HTML")
+                        try:
+                            html_chunk = markdown_to_html(chunk)
+                            await context.bot.send_message(
+                                chat_id=update.message.chat_id,
+                                text=html_chunk,
+                                parse_mode=ParseMode.HTML
+                            )
+                        except Exception:
+                            # Last resort: plain text
+                            await context.bot.send_message(
+                                chat_id=update.message.chat_id,
+                                text=chunk
+                            )
             except Exception as e:
                 logger.error(f"Review command failed: {e}")
                 await update.message.reply_text(f"Failed to review: {str(e)[:100]}")
@@ -357,18 +475,29 @@ class TelegramHandler(PlatformHandler):
                 response = await self._deepsearch_callback(url)
                 chunks = self._chunk_message(response, 4000)
                 for chunk in chunks:
+                    # Try MarkdownV2 first for GFM support
                     try:
-                        html_chunk = markdown_to_html(chunk)
+                        md_chunk = markdown_to_telegram(chunk)
                         await context.bot.send_message(
                             chat_id=update.message.chat_id,
-                            text=html_chunk,
-                            parse_mode=ParseMode.HTML
+                            text=md_chunk,
+                            parse_mode=ParseMode.MARKDOWN_V2
                         )
-                    except Exception:
-                        await context.bot.send_message(
-                            chat_id=update.message.chat_id,
-                            text=chunk
-                        )
+                    except Exception as md_err:
+                        logger.debug(f"MarkdownV2 failed: {md_err}, trying HTML")
+                        try:
+                            html_chunk = markdown_to_html(chunk)
+                            await context.bot.send_message(
+                                chat_id=update.message.chat_id,
+                                text=html_chunk,
+                                parse_mode=ParseMode.HTML
+                            )
+                        except Exception:
+                            # Last resort: plain text
+                            await context.bot.send_message(
+                                chat_id=update.message.chat_id,
+                                text=chunk
+                            )
             except Exception as e:
                 logger.error(f"Deepsearch command failed: {e}")
                 await update.message.reply_text(f"Failed to deep search: {str(e)[:100]}")
