@@ -22,10 +22,13 @@ class AiAssistClient:
     @property
     def _headers(self) -> Dict[str, str]:
         """Get request headers."""
-        return {
+        headers = {
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
         }
+        if self.config.provider:
+            headers["X-AiAssist-Provider"] = self.config.provider
+        return headers
     
     async def connect(self) -> None:
         """Initialize HTTP session."""
