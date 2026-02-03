@@ -146,6 +146,8 @@ class AiAssistClient:
         """
         Extract content from a webpage using AiAssist's web extract API.
         
+        Tries browser extraction first for SPA support, falls back to HTTP if it fails.
+        
         Args:
             url: The URL to extract content from
             extract_links: Whether to extract links from the page
@@ -158,24 +160,52 @@ class AiAssistClient:
             await self.connect()
         
         api_url = f"{self.config.api_url}/v1/web/extract"
+        timeout = aiohttp.ClientTimeout(total=90)
         
+        # Try browser extraction first (for SPAs)
         payload = {
             "url": url,
             "extract_links": extract_links,
             "max_content_length": max_content_length,
-            "use_browser": None,
+            "use_browser": True,
         }
         
         try:
-            timeout = aiohttp.ClientTimeout(total=90)
+            logger.info(f"Trying browser extraction for {url}...")
             async with self._session.post(api_url, json=payload, headers=self._headers, timeout=timeout) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if not data.get("success", True):
-                        error_msg = data.get("error") or data.get("message") or "Unknown error"
-                        logger.error(f"Web extract API returned error: {error_msg}")
-                        raise Exception(f"Web extract failed: {error_msg}")
-                    return data
+                    if data.get("success", False):
+                        logger.info(f"Browser extraction succeeded ({data.get('latency_ms')}ms)")
+                        return data
+                    
+                    # Browser extraction failed, try HTTP fallback
+                    error_msg = data.get("error_message") or data.get("error_code") or "unknown"
+                    logger.warning(f"Browser extraction failed: {error_msg}. Trying HTTP fallback...")
+                    
+        except aiohttp.ClientError as e:
+            logger.warning(f"Browser extraction request failed: {e}. Trying HTTP fallback...")
+        
+        # Fallback to HTTP extraction
+        payload["use_browser"] = False
+        
+        try:
+            logger.info(f"Trying HTTP extraction for {url}...")
+            async with self._session.post(api_url, json=payload, headers=self._headers, timeout=timeout) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if data.get("success", False):
+                        logger.info(f"HTTP extraction succeeded ({data.get('latency_ms')}ms)")
+                        return data
+                    
+                    error_msg = (
+                        data.get("error_message") or 
+                        data.get("error") or 
+                        data.get("message") or 
+                        f"Error code: {data.get('error_code', 'Unknown')}"
+                    )
+                    logger.error(f"HTTP extraction also failed: {error_msg}")
+                    raise Exception(f"Web extract failed: {error_msg}")
                 
                 error_text = await response.text()
                 logger.error(f"Web extract error {response.status}: {error_text}")
