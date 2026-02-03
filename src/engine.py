@@ -55,12 +55,17 @@ class BotEngine:
             handler = DiscordHandler(self.config.discord)
             handler.on_message(self._handle_message)
             handler.on_imagine(self._handle_imagine)
+            handler.on_clear(self._handle_clear)
+            handler.on_review(self._handle_review)
+            handler.on_deepsearch(self._handle_deepsearch)
             self.platforms["discord"] = handler
         
         if self.config.telegram.enabled:
             handler = TelegramHandler(self.config.telegram)
             handler.on_message(self._handle_message)
             handler.on_clear(self._handle_clear)
+            handler.on_review(self._handle_review)
+            handler.on_deepsearch(self._handle_deepsearch)
             self.platforms["telegram"] = handler
         
         for name, handler in self.platforms.items():
@@ -159,7 +164,7 @@ class BotEngine:
         parts = []
         
         current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-        parts.append("You are Malachi, a helpful AI assistant powered by AiAssist.net")
+        parts.append("You are Malachi, a helpful AI assistant powered by AiAssist.")
         parts.append(f"Current date and time: {current_time}")
         parts.append(f"You are chatting with {message.author_name} on {message.platform.value}.")
         
@@ -186,6 +191,130 @@ class BotEngine:
         await self.memory.clear_conversation(conversation.id)
         logger.info(f"Cleared conversation {conversation.id} for user {user_id}")
     
+    async def _handle_review(self, url: str) -> str:
+        """Handle /review command - single page website analysis."""
+        try:
+            extracted = await self.aiassist.web_extract(url, extract_links=False)
+            
+            content = extracted.get("content", "")
+            if not content or len(content) < 50:
+                return f"Could not extract meaningful content from {url}. The page may be blocking bots or require JavaScript."
+            
+            review_prompt = self._build_review_prompt(extracted)
+            
+            messages = [
+                {"role": "system", "content": self._get_review_system_prompt()},
+                {"role": "user", "content": review_prompt}
+            ]
+            
+            response = await self.aiassist.chat(messages, max_tokens=2048)
+            return response
+            
+        except Exception as e:
+            import traceback
+            error_msg = str(e) if str(e) else f"Unknown error: {type(e).__name__}"
+            logger.error(f"Review failed for {url}: {error_msg}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return f"Failed to review {url}: {error_msg}"
+    
+    async def _handle_deepsearch(self, url: str) -> str:
+        """Handle /deepsearch command - multi-page website analysis."""
+        try:
+            extracted = await self.aiassist.web_extract(url, extract_links=True)
+            
+            if not extracted.get("success"):
+                return f"Failed to extract content from {url}"
+            
+            all_content = [extracted]
+            
+            links = extracted.get("links", [])
+            priority_keywords = ["about", "pricing", "features", "product", "solution", "team", "company"]
+            priority_links = []
+            
+            for link in links[:20]:
+                link_lower = link.lower()
+                if any(kw in link_lower for kw in priority_keywords):
+                    priority_links.append(link)
+            
+            for link in priority_links[:4]:
+                try:
+                    link_content = await self.aiassist.web_extract(link, extract_links=False, max_content_length=8000)
+                    if link_content.get("success"):
+                        all_content.append(link_content)
+                except Exception as e:
+                    logger.warning(f"Failed to extract {link}: {e}")
+            
+            review_prompt = self._build_deepsearch_prompt(all_content)
+            
+            messages = [
+                {"role": "system", "content": self._get_review_system_prompt()},
+                {"role": "user", "content": review_prompt}
+            ]
+            
+            response = await self.aiassist.chat(messages, max_tokens=3000)
+            return response
+            
+        except Exception as e:
+            logger.error(f"Deepsearch failed for {url}: {e}")
+            return f"Failed to deep search {url}: {str(e)}"
+    
+    def _get_review_system_prompt(self) -> str:
+        """Get the system prompt for website reviews."""
+        return """You are Malachi, an expert product analyst and GTM strategist for AiAssist.
+
+Your job is to review websites/applications and provide:
+1. A concise product overview
+2. CTA (Call-to-Action) analysis
+3. Target audience identification
+4. Basic GTM (Go-to-Market) insights
+5. AI integration recommendations using AiAssist
+
+Always end with specific, actionable suggestions for how the founder could integrate AI features using AiAssist's API (chat completions, knowledge bases, AI agents, etc.).
+
+Be professional, insightful, and constructive. Format your response with clear sections."""
+    
+    def _build_review_prompt(self, extracted: dict) -> str:
+        """Build the review prompt from extracted content."""
+        return f"""Please review this website/application:
+
+**URL:** {extracted.get('url', 'N/A')}
+**Title:** {extracted.get('title', 'N/A')}
+**Domain:** {extracted.get('domain', 'N/A')}
+
+**Content:**
+{extracted.get('content', 'No content extracted')[:12000]}
+
+Provide a comprehensive review including:
+1. Product/Service Overview
+2. CTA Analysis
+3. Target Audience
+4. GTM Insights
+5. AI Integration Opportunities with AiAssist"""
+    
+    def _build_deepsearch_prompt(self, pages: list) -> str:
+        """Build the deepsearch prompt from multiple extracted pages."""
+        content_parts = []
+        for i, page in enumerate(pages):
+            content_parts.append(f"""
+--- Page {i+1}: {page.get('title', 'Untitled')} ---
+URL: {page.get('url', 'N/A')}
+{page.get('content', '')[:6000]}
+""")
+        
+        all_content = "\n".join(content_parts)
+        
+        return f"""Please perform a comprehensive review of this website/application based on multiple pages:
+
+{all_content}
+
+Provide an in-depth analysis including:
+1. Complete Product/Service Overview
+2. Value Proposition & CTA Analysis
+3. Target Audience & Market Positioning
+4. Pricing Strategy (if visible)
+5. Competitive Insights
+6. GTM Recommendations
+7. AI Integration Opportunities with AiAssist (be specific about which AiAssist features would add value)"""
     
     def get_status(self) -> BotStatus:
         """Get current bot status."""

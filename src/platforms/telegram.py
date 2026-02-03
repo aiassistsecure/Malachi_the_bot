@@ -41,6 +41,16 @@ class TelegramHandler(PlatformHandler):
         self._app: Optional[Application] = None
         self._bot: Optional[Bot] = None
         self._bot_username: Optional[str] = None
+        self._review_callback = None
+        self._deepsearch_callback = None
+    
+    def on_review(self, callback):
+        """Register callback for website review."""
+        self._review_callback = callback
+    
+    def on_deepsearch(self, callback):
+        """Register callback for deep search."""
+        self._deepsearch_callback = callback
     
     async def connect(self) -> None:
         """Connect to Telegram."""
@@ -54,6 +64,8 @@ class TelegramHandler(PlatformHandler):
         self._app.add_handler(CommandHandler("info", self._cmd_info))
         self._app.add_handler(CommandHandler("clear", self._cmd_clear))
         self._app.add_handler(CommandHandler("imagine", self._cmd_imagine))
+        self._app.add_handler(CommandHandler("review", self._cmd_review))
+        self._app.add_handler(CommandHandler("deepsearch", self._cmd_deepsearch))
         
         self._app.add_handler(MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -204,7 +216,9 @@ class TelegramHandler(PlatformHandler):
             "/help - Show available commands\n"
             "/info - Bot information\n"
             "/clear - Clear conversation history\n"
-            "/imagine <prompt> - Generate an image"
+            "/imagine <prompt> - Generate an image\n"
+            "/review <url> - Review a website with GTM insights\n"
+            "/deepsearch <url> - Deep multi-page analysis"
         )
     
     async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -215,7 +229,9 @@ class TelegramHandler(PlatformHandler):
             "/help - Show this help message\n"
             "/info - Bot information\n"
             "/clear - Clear your conversation history\n"
-            "/imagine <prompt> - Generate an image\n\n"
+            "/imagine <prompt> - Generate an image\n"
+            "/review <url> - Review a website with GTM insights\n"
+            "/deepsearch <url> - Deep multi-page website analysis\n\n"
             "Or just send me any message to chat!"
         )
     
@@ -284,6 +300,80 @@ class TelegramHandler(PlatformHandler):
         except Exception as e:
             logger.error(f"Image generation failed: {e}")
             await update.message.reply_text("Image generation service is currently unavailable. Please try again later.")
+    
+    async def _cmd_review(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /review command for website analysis."""
+        url = " ".join(context.args) if context.args else ""
+        
+        if not url:
+            await update.message.reply_text("Please provide a URL! Usage: /review https://example.com")
+            return
+        
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        
+        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        await update.message.reply_text(f"Analyzing {url}... This may take a moment.")
+        
+        if self._review_callback:
+            try:
+                response = await self._review_callback(url)
+                chunks = self._chunk_message(response, 4000)
+                for chunk in chunks:
+                    try:
+                        html_chunk = markdown_to_html(chunk)
+                        await context.bot.send_message(
+                            chat_id=update.message.chat_id,
+                            text=html_chunk,
+                            parse_mode=ParseMode.HTML
+                        )
+                    except Exception:
+                        await context.bot.send_message(
+                            chat_id=update.message.chat_id,
+                            text=chunk
+                        )
+            except Exception as e:
+                logger.error(f"Review command failed: {e}")
+                await update.message.reply_text(f"Failed to review: {str(e)[:100]}")
+        else:
+            await update.message.reply_text("Review feature is not available.")
+    
+    async def _cmd_deepsearch(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /deepsearch command for multi-page website analysis."""
+        url = " ".join(context.args) if context.args else ""
+        
+        if not url:
+            await update.message.reply_text("Please provide a URL! Usage: /deepsearch https://example.com")
+            return
+        
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        
+        await context.bot.send_chat_action(chat_id=update.message.chat_id, action="typing")
+        await update.message.reply_text(f"Deep searching {url}... Analyzing multiple pages, this may take a minute.")
+        
+        if self._deepsearch_callback:
+            try:
+                response = await self._deepsearch_callback(url)
+                chunks = self._chunk_message(response, 4000)
+                for chunk in chunks:
+                    try:
+                        html_chunk = markdown_to_html(chunk)
+                        await context.bot.send_message(
+                            chat_id=update.message.chat_id,
+                            text=html_chunk,
+                            parse_mode=ParseMode.HTML
+                        )
+                    except Exception:
+                        await context.bot.send_message(
+                            chat_id=update.message.chat_id,
+                            text=chunk
+                        )
+            except Exception as e:
+                logger.error(f"Deepsearch command failed: {e}")
+                await update.message.reply_text(f"Failed to deep search: {str(e)[:100]}")
+        else:
+            await update.message.reply_text("Deep search feature is not available.")
     
     def _chunk_message(self, text: str, max_length: int = 4000) -> list:
         """Split a long message into chunks that fit Telegram's limit."""

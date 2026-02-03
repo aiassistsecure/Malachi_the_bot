@@ -22,13 +22,10 @@ class AiAssistClient:
     @property
     def _headers(self) -> Dict[str, str]:
         """Get request headers."""
-        headers = {
+        return {
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
         }
-        if self.config.provider:
-            headers["X-AiAssist-Provider"] = self.config.provider
-        return headers
     
     async def connect(self) -> None:
         """Initialize HTTP session."""
@@ -136,3 +133,50 @@ class AiAssistClient:
                 return response.status == 200
         except Exception:
             return False
+    
+    async def web_extract(
+        self,
+        url: str,
+        extract_links: bool = False,
+        max_content_length: int = 15000,
+    ) -> Dict[str, Any]:
+        """
+        Extract content from a webpage using AiAssist's web extract API.
+        
+        Args:
+            url: The URL to extract content from
+            extract_links: Whether to extract links from the page
+            max_content_length: Maximum content length to return
+            
+        Returns:
+            Dict with url, title, content, domain, etc.
+        """
+        if not self._session:
+            await self.connect()
+        
+        api_url = f"{self.config.api_url}/v1/web/extract"
+        
+        payload = {
+            "url": url,
+            "extract_links": extract_links,
+            "max_content_length": max_content_length,
+            "use_browser": None,
+        }
+        
+        try:
+            async with self._session.post(api_url, json=payload, headers=self._headers) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if not data.get("success", True):
+                        error_msg = data.get("error") or data.get("message") or "Unknown error"
+                        logger.error(f"Web extract API returned error: {error_msg}")
+                        raise Exception(f"Web extract failed: {error_msg}")
+                    return data
+                
+                error_text = await response.text()
+                logger.error(f"Web extract error {response.status}: {error_text}")
+                raise Exception(f"Web extract failed ({response.status}): {error_text}")
+                
+        except aiohttp.ClientError as e:
+            logger.error(f"Web extract request failed: {e}")
+            raise

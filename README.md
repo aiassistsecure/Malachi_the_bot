@@ -2,9 +2,6 @@
 
 **Open-source personal AI automation for Discord & Telegram**
 
-Telegram:  https://t.me/Malachi_the_bot
-
-
 An open-source bot framework that brings AI-powered automation to your favorite messaging platforms. Powered by [AiAssist API](https://aiassist.net) for intelligent, context-aware responses.
 
 ---
@@ -133,7 +130,7 @@ python main.py serve
 **Bot Behavior:**
 - Responds to all DMs automatically
 - In servers, requires @mention to respond (not "chatty")
-- Slash commands: `/ask`, `/help`, `/info`, `/clear`, `/imagine`
+- Slash commands: `/ask`, `/help`, `/info`, `/clear`, `/imagine`, `/review`, `/deepsearch`
 
 See [PLATFORMS.md](docs/PLATFORMS.md) for detailed instructions.
 
@@ -146,7 +143,7 @@ See [PLATFORMS.md](docs/PLATFORMS.md) for detailed instructions.
 **Bot Behavior:**
 - Responds to all private messages
 - In groups, requires @mention to respond
-- Commands: `/start`, `/help`, `/info`, `/clear`, `/imagine`
+- Commands: `/start`, `/help`, `/info`, `/clear`, `/imagine`, `/review`, `/deepsearch`
 
 See [PLATFORMS.md](docs/PLATFORMS.md) for detailed instructions.
 
