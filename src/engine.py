@@ -159,7 +159,7 @@ class BotEngine:
         parts = []
         
         current_time = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
-        parts.append("You are Malachi, a helpful AI assistant powered by AiAssist.")
+        parts.append("You are Malachi, a helpful AI assistant powered by AiAssist.net")
         parts.append(f"Current date and time: {current_time}")
         parts.append(f"You are chatting with {message.author_name} on {message.platform.value}.")
         
