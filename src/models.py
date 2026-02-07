@@ -10,6 +10,7 @@ class Platform(str, Enum):
     """Supported platforms."""
     DISCORD = "discord"
     TELEGRAM = "telegram"
+    DEVNETWORK = "devnetwork"
 
 
 class MessageRole(str, Enum):
