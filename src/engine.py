@@ -13,6 +13,7 @@ from .aiassist import AiAssistClient
 from .platforms.base import PlatformHandler
 from .platforms.discord import DiscordHandler
 from .platforms.telegram import TelegramHandler
+from .platforms.devnetwork import DevNetworkHandler
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,15 @@ class BotEngine:
             handler.on_deepsearch(self._handle_deepsearch)
             self.platforms["telegram"] = handler
         
+        if self.config.devnetwork.enabled:
+            handler = DevNetworkHandler(self.config.devnetwork)
+            handler.on_message(self._handle_message)
+            handler.on_clear(self._handle_clear)
+            handler.on_imagine(self._handle_imagine)
+            handler.on_review(self._handle_review)
+            handler.on_deepsearch(self._handle_deepsearch)
+            self.platforms["devnetwork"] = handler
+        
         for name, handler in self.platforms.items():
             logger.info(f"Connecting to {name}...")
             asyncio.create_task(self._connect_platform(name, handler))
@@ -77,11 +87,21 @@ class BotEngine:
         logger.info("Bot engine started")
     
     async def _connect_platform(self, name: str, handler: PlatformHandler) -> None:
-        """Connect a platform handler with error handling."""
-        try:
-            await handler.connect()
-        except Exception as e:
-            logger.error(f"Failed to connect to {name}: {e}")
+        """Connect a platform handler with retry on failure."""
+        delay = 5
+        max_delay = 120
+        attempt = 0
+        while self._running:
+            attempt += 1
+            try:
+                await handler.connect()
+                logger.info(f"Connected to {name}")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to connect to {name} (attempt {attempt}): {e}")
+                logger.info(f"Retrying {name} in {delay}s...")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
     
     async def stop(self) -> None:
         """Stop the bot engine and disconnect from platforms."""

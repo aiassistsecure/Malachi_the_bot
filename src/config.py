@@ -62,6 +62,20 @@ class TelegramConfig:
 
 
 @dataclass
+class DevNetworkConfig:
+    """DevNetwork platform configuration."""
+    enabled: bool = False
+    api_url: str = "http://localhost:5000"
+    bot_token: str = ""
+    respond_to_dms: bool = True
+    respond_to_groups: bool = True
+    require_mention_in_groups: bool = True
+    typing_indicator: bool = True
+    rate_limit_messages: int = 20
+    rate_limit_window: int = 60
+
+
+@dataclass
 class MemoryConfig:
     """Memory and storage configuration."""
     enabled: bool = True
@@ -85,6 +99,7 @@ class Config:
     aiassist: AiAssistConfig = field(default_factory=AiAssistConfig)
     discord: DiscordConfig = field(default_factory=DiscordConfig)
     telegram: TelegramConfig = field(default_factory=TelegramConfig)
+    devnetwork: DevNetworkConfig = field(default_factory=DevNetworkConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
 
@@ -185,6 +200,19 @@ def load_config(config_path: Optional[str] = None) -> Config:
         admin_users=telegram_yaml.get("admin_users", []),
     )
     
+    devnetwork_yaml = platforms_yaml.get("devnetwork", {})
+    devnetwork = DevNetworkConfig(
+        enabled=devnetwork_yaml.get("enabled", False),
+        api_url=_get_env("DEVNETWORK_API_URL", devnetwork_yaml.get("api_url", "http://localhost:5000")),
+        bot_token=_get_env("DEVNETWORK_BOT_TOKEN", devnetwork_yaml.get("bot_token", "")),
+        respond_to_dms=devnetwork_yaml.get("respond_to_dms", True),
+        respond_to_groups=devnetwork_yaml.get("respond_to_groups", True),
+        require_mention_in_groups=devnetwork_yaml.get("require_mention_in_groups", True),
+        typing_indicator=devnetwork_yaml.get("typing_indicator", True),
+        rate_limit_messages=devnetwork_yaml.get("rate_limit_messages", 20),
+        rate_limit_window=devnetwork_yaml.get("rate_limit_window", 60),
+    )
+    
     memory_yaml = yaml_config.get("memory", {})
     memory = MemoryConfig(
         enabled=memory_yaml.get("enabled", True),
@@ -205,6 +233,7 @@ def load_config(config_path: Optional[str] = None) -> Config:
         aiassist=aiassist,
         discord=discord,
         telegram=telegram,
+        devnetwork=devnetwork,
         memory=memory,
         server=server,
     )

@@ -38,8 +38,9 @@ async def run_bot(config_path: str, with_api: bool) -> None:
         logger.error("AiAssist API key is required. Set AIASSIST_API_KEY or configure in config.yaml")
         sys.exit(1)
     
-    if not config.discord.enabled and not config.telegram.enabled:
-        logger.error("At least one platform must be enabled. Configure Discord or Telegram in config.yaml")
+    devnetwork_enabled = hasattr(config, 'devnetwork') and config.devnetwork.enabled
+    if not config.discord.enabled and not config.telegram.enabled and not devnetwork_enabled:
+        logger.error("At least one platform must be enabled. Configure Discord, Telegram, or DevNetwork in config.yaml")
         sys.exit(1)
     
     if config.server.host == "0.0.0.0" and not config.server.api_key:
