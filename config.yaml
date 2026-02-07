@@ -39,7 +39,7 @@ platforms:
 
   devnetwork:
     enabled: true
-    api_url: ""
+    api_url: "https://devnet.aiassist.net"
     bot_token: ""
     respond_to_dms: true
     respond_to_groups: true
