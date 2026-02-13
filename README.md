@@ -65,6 +65,8 @@ cd malachi_the_bot
 # Install dependencies
 pip install -r requirements.txt
 
+pip install git+https://github.com/aiassistsecure/python-client.git
+
 # Copy example config
 cp config.example.yaml config.yaml
 ```
